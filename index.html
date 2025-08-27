@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>QR Code Generator API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input, button {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #result {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #result img {
+            max-width: 300px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+<h1>QR Code Generator API Test</h1>
+
+<form id="qrForm" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="url">URL (required):</label>
+        <input type="text" id="url" name="url" placeholder="https://example.com" required>
+    </div>
+
+    <div class="form-group">
+        <label for="logo">Logo (optional):</label>
+        <input type="file" id="logo" name="logo" accept="image/*">
+    </div>
+
+    <div class="form-group">
+        <label for="border">Border:</label>
+        <input type="number" id="border" name="border" value="4" min="0" max="20">
+    </div>
+
+    <button type="submit">Generate QR Code</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+    document.getElementById('qrForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const formData = new FormData();
+        formData.append('url', document.getElementById('url').value);
+        formData.append('size', document.getElementById('size').value);
+        formData.append('border', document.getElementById('border').value);
+
+        const logoFile = document.getElementById('logo').files[0];
+        if (logoFile) {
+            formData.append('logo', logoFile);
+        }
+
+        fetch('/generate', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(err => {
+                        throw err;
+                    });
+                }
+            })
+            .then(blob => {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(blob);
+                img.alt = 'Generated QR Code';
+
+                const result = document.getElementById('result');
+                result.innerHTML = '<h3>Generated QR Code:</h3>';
+                result.appendChild(img);
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML =
+                    '<p style="color: red;">Error: ' + (error.error || error.message || 'Unknown error') + '</p>';
+            });
+    });
+</script>
+</body>
+</html>
