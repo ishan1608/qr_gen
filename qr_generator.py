@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import sys
 
@@ -8,9 +6,9 @@ from PIL import Image
 
 
 def generate_qr_code(url, output_file, size, border, logo_path):
-    """Create QR code with reserved center space for logo"""
+    """Generate QR code with optional logo overlay using error correction"""
 
-    # First create a normal QR code to get the module layout
+    # Create QR code with high error correction for logo compatibility
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_H,
@@ -21,64 +19,36 @@ def generate_qr_code(url, output_file, size, border, logo_path):
     qr.add_data(url)
     qr.make(fit=True)
 
+    # Generate complete QR code image
+    img = qr.make_image(fill_color="black", back_color="white")
+
     if not logo_path:
-        img = qr.make_image(fill_color="black", back_color="white")
         img.save(output_file)
         print(f"QR code saved as {output_file}")
         return img
 
-    # Get module information
-    modules = qr.modules
-    module_count = len(modules)
-    center = module_count // 2
-    logo_radius = max(2, module_count // 8)
+    logo = Image.open(logo_path)
 
-    # Create image manually, skipping center area
-    img_size = (module_count * size) + (2 * border * size)
-    img = Image.new('RGB', (img_size, img_size), 'white')
+    # Calculate logo size (up to 30% of QR code for Level H error correction)
+    qr_width, qr_height = img.size
+    logo_size = min(qr_width, qr_height) // 4  # Conservative 25% coverage
 
-    # Draw QR modules, skipping logo area
-    for row in range(module_count):
-        for col in range(module_count):
-            if modules[row][col]:  # If module should be black
-                # Skip if in logo area
-                if (center - logo_radius <= row <= center + logo_radius and
-                        center - logo_radius <= col <= center + logo_radius):
-                    continue
+    # Resize logo
+    logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
 
-                # Calculate pixel position
-                x = (border * size) + (col * size)
-                y = (border * size) + (row * size)
+    # Calculate center position
+    logo_pos = ((qr_width - logo_size) // 2, (qr_height - logo_size) // 2)
 
-                # Draw black square
-                for px in range(size):
-                    for py in range(size):
-                        if x + px < img_size and y + py < img_size:
-                            img.putpixel((x + px, y + py), (0, 0, 0))
-
-    # Add logo to the reserved center space
-    try:
-        logo = Image.open(logo_path)
-
-        # Calculate logo size and position
-        logo_pixel_size = logo_radius * 2 * size
-
-        # Calculate true center of the QR code image
-        img_center_x = img_size // 2
-        img_center_y = img_size // 2
-
-        logo = logo.resize((logo_pixel_size, logo_pixel_size), Image.Resampling.LANCZOS)
-
-        logo_pos = (img_center_x - logo_pixel_size // 2,
-                    img_center_y - logo_pixel_size // 2)
-
-        if logo.mode == 'RGBA':
-            img.paste(logo, logo_pos, logo)
-        else:
-            img.paste(logo, logo_pos)
-
-    except Exception as e:
-        print(f"Error adding logo: {e}")
+    # Convert images to RGB to avoid alpha channel issues
+    img = img.convert('RGB')
+    if logo.mode == 'RGBA':
+        # Create white background for logo to ensure clean overlay
+        logo_bg = Image.new('RGB', (logo_size, logo_size), 'white')
+        logo_bg.paste(logo, (0, 0), logo)  # Use alpha as mask
+        img.paste(logo_bg, logo_pos)
+    else:
+        logo = logo.convert('RGB')
+        img.paste(logo, logo_pos)
 
     img.save(output_file)
     print(f"QR code saved as {output_file}")
